@@ -42,7 +42,8 @@ function createWindow(): void {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    // 修复：指向正确的构建输出路径
+    mainWindow.loadFile(path.join(__dirname, '../dist/renderer/index.html'))
   }
 }
 

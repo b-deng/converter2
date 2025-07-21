@@ -10,7 +10,7 @@ export const formatGroups: FormatGroup[] = [
   {
     name: '图片',
     icon: '🖼️',
-    formats: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'],
+    formats: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico'],
     color: 'green',
   },
   {

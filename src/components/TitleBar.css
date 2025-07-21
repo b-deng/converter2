@@ -1,0 +1,135 @@
+.title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  user-select: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.title-bar-drag-region {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: drag;
+  padding-left: 12px;
+}
+
+.title-bar-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.app-icon-container {
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+}
+
+.app-icon {
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+}
+
+.app-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-name {
+  font-family: 'Microsoft YaHei', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: white;
+}
+
+.app-description {
+  font-family: 'Microsoft YaHei', sans-serif;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.3px;
+}
+
+.title-bar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.title-bar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-size: 12px;
+}
+
+.title-bar-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.title-bar-button:active {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.close-button:hover {
+  background-color: #e74c3c !important;
+}
+
+.close-button:active {
+  background-color: #c0392b !important;
+}
+
+.minimize-button svg,
+.maximize-button svg,
+.close-button svg {
+  opacity: 0.9;
+}
+
+.title-bar-button:hover svg {
+  opacity: 1;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .title-bar {
+    height: 28px;
+  }
+  
+  .title-bar-button {
+    width: 40px;
+  }
+  
+  .title-bar-title {
+    font-size: 13px;
+  }
+  
+  .app-icon {
+    font-size: 14px;
+  }
+}

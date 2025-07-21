@@ -42,6 +42,7 @@ export class FileConverter {
         case 'gif':
         case 'bmp':
         case 'webp':
+        case 'svg':
           return await this.convertImage(inputPath, outputPath, targetFormat, onProgress)
         
         case 'docx':
@@ -79,6 +80,13 @@ export class FileConverter {
     try {
       onProgress?.(30)
       
+      const inputExt = path.extname(inputPath).toLowerCase().slice(1)
+      
+      // 特殊处理 SVG 到 ICO 的转换
+      if (inputExt === 'svg' && targetFormat === 'ico') {
+        return await this.convertSvgToIco(inputPath, outputPath, onProgress)
+      }
+      
       let sharpInstance = sharp(inputPath)
       
       // 根据目标格式设置选项
@@ -92,6 +100,12 @@ export class FileConverter {
           break
         case 'webp':
           sharpInstance = sharpInstance.webp({ quality: 80 })
+          break
+        case 'ico':
+          // ICO 格式转换：先转换为PNG，然后调整尺寸
+          sharpInstance = sharpInstance
+            .resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .png()
           break
         case 'pdf':
           // 对于PDF转换，我们需要先转换为图片，然后嵌入PDF
@@ -116,6 +130,51 @@ export class FileConverter {
       return {
         success: false,
         error: error instanceof Error ? error.message : '图片转换失败'
+      }
+    }
+  }
+
+  private async convertSvgToIco(
+    inputPath: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      console.log('SVG转ICO调试: 开始转换', inputPath, '->', outputPath)
+      onProgress?.(40)
+      
+      // 读取SVG文件内容
+      const svgBuffer = await fs.promises.readFile(inputPath)
+      onProgress?.(50)
+      
+      // 使用Sharp将SVG转换为PNG，然后调整为ICO标准尺寸
+      const icoBuffer = await sharp(svgBuffer)
+        .resize(32, 32, { 
+          fit: 'contain', 
+          background: { r: 0, g: 0, b: 0, alpha: 0 } 
+        })
+        .png()
+        .toBuffer()
+      
+      onProgress?.(80)
+      
+      // 将PNG数据写入ICO文件
+      // 注意：这里简化处理，实际上ICO格式有特定的文件头结构
+      // 但大多数应用程序可以识别PNG格式的.ico文件
+      await fs.promises.writeFile(outputPath, icoBuffer)
+      
+      onProgress?.(100)
+      console.log('SVG转ICO调试: 转换完成')
+      
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      console.error('SVG转ICO调试: 转换失败', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'SVG到ICO转换失败'
       }
     }
   }

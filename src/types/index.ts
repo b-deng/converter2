@@ -19,7 +19,7 @@ export interface ConversionOptions {
 
 export type SupportedFormat = 
   | 'pdf' | 'docx' | 'doc' | 'txt' | 'rtf'
-  | 'jpg' | 'jpeg' | 'png' | 'gif' | 'bmp' | 'svg' | 'webp'
+  | 'jpg' | 'jpeg' | 'png' | 'gif' | 'bmp' | 'svg' | 'webp' | 'ico'
   | 'xlsx' | 'xls' | 'csv'
   | 'pptx' | 'ppt'
   | 'mp4' | 'avi' | 'mov' | 'wmv'

@@ -33,6 +33,7 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#ffffff',
     title: '精转数智', // 更改应用标题
+    icon: path.join(__dirname, '../build/icon.ico'), // 使用自定义图标
   })
 
   // 窗口准备好后显示，避免闪烁

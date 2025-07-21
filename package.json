@@ -62,7 +62,7 @@
   },
   "build": {
     "appId": "com.converter.app",
-    "productName": "File Converter",
+    "productName": "精转数智",
     "directories": {
       "output": "release",
       "buildResources": "build"

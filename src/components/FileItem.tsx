@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { FileText, X } from 'lucide-react'
 import { FileItem as FileItemType } from '../types'
-import { getFormatInfo, formatFileSize } from '../utils/formats'
+import { getFormatInfo, formatFileSize, getSupportedFormats } from '../utils/formats'
 import { CircularProgress } from './CircularProgress'
 import { SuccessAnimation } from './SuccessAnimation'
 import { ErrorAnimation } from './ErrorAnimation'
@@ -15,6 +15,7 @@ interface FileItemProps {
 
 export const FileItem: React.FC<FileItemProps> = ({ file, onRemove, onFormatChange }) => {
   const formatInfo = getFormatInfo(file.type)
+  const supportedFormats = getSupportedFormats(file.type)
 
   const getStatusIcon = () => {
     switch (file.status) {
@@ -84,10 +85,14 @@ export const FileItem: React.FC<FileItemProps> = ({ file, onRemove, onFormatChan
               aria-label="选择输出格式"
             >
               <option value="">选择格式</option>
-              <option value="pdf">PDF</option>
-              <option value="docx">Word</option>
-              <option value="jpg">JPG</option>
-              <option value="png">PNG</option>
+              {supportedFormats.map(format => {
+                const info = getFormatInfo(format)
+                return (
+                  <option key={format} value={format}>
+                    {info.icon} {format.toUpperCase()}
+                  </option>
+                )
+              })}
             </select>
           )}
 

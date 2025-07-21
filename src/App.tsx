@@ -39,32 +39,68 @@ function App() {
     let filePaths: string[]
 
     if (typeof selectedFiles[0] === 'string') {
-      // 来自electron文件选择器
+      // 来自电子文件选择器
       filePaths = selectedFiles as string[]
     } else {
-      // 来自拖拽（在Electron中，File对象可能有path属性）
-      filePaths = (selectedFiles as File[]).map(f => (f as any).path || f.name)
+      // 来自拖拽（在Electron中，File对象有path属性）
+      const files = selectedFiles as File[]
+      console.log('Processing dragged files:', files)
+      
+      filePaths = files.map(file => {
+        // 在Electron中，拖拽的文件具有path属性
+        const electronFile = file as any
+        const filePath = electronFile.path
+        console.log('File path for', file.name, ':', filePath)
+        
+        if (!filePath) {
+          console.warn('拖拽的文件没有path属性:', file.name)
+          return null
+        }
+        
+        return filePath
+      }).filter(Boolean) as string[]
+      
+      console.log('Extracted file paths:', filePaths)
     }
 
     const newFiles: FileItemType[] = []
 
+    if (filePaths.length === 0) {
+      console.warn('没有有效的文件路径')
+      return
+    }
+    
     for (const filePath of filePaths) {
-      const fileInfo = await window.electronAPI.getFileInfo(filePath)
-      if (fileInfo) {
-        newFiles.push({
-          id: Math.random().toString(36).substr(2, 9),
-          name: fileInfo.name,
-          path: fileInfo.path,
-          size: fileInfo.size,
-          type: fileInfo.type,
-          status: 'pending',
-          progress: 0,
-          targetFormat: options.targetFormat || undefined,
-        })
+      try {
+        console.log('获取文件信息:', filePath)
+        const fileInfo = await window.electronAPI.getFileInfo(filePath)
+        console.log('文件信息:', fileInfo)
+        
+        if (fileInfo) {
+          newFiles.push({
+            id: Math.random().toString(36).substr(2, 9),
+            name: fileInfo.name,
+            path: fileInfo.path,
+            size: fileInfo.size,
+            type: fileInfo.type,
+            status: 'pending',
+            progress: 0,
+            targetFormat: options.targetFormat || undefined,
+          })
+        } else {
+          console.error('无法获取文件信息:', filePath)
+        }
+      } catch (error) {
+        console.error('获取文件信息失败:', filePath, error)
       }
     }
 
-    setFiles(prev => [...prev, ...newFiles])
+    if (newFiles.length > 0) {
+      console.log('添加新文件:', newFiles)
+      setFiles(prev => [...prev, ...newFiles])
+    } else {
+      console.warn('没有有效的文件被添加')
+    }
   }, [options.targetFormat])
 
   const handleRemoveFile = useCallback((id: string) => {

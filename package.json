@@ -1,6 +1,8 @@
 {
-  "name": "converter",
+  "name": "jingzhuan-shuzhi",
+  "productName": "精转数智",
   "version": "1.0.0",
+  "description": "简单、快速、美观的文件转换工具",
   "type": "module",
   "main": "dist/main.js",
   "homepage": "./",
@@ -27,7 +29,6 @@
   ],
   "author": "",
   "license": "ISC",
-  "description": "A modern file converter with beautiful UI and animations",
   "devDependencies": {
     "@types/node": "^24.0.14",
     "@types/sharp": "^0.31.1",

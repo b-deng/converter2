@@ -42,6 +42,23 @@ const electronAPI = {
     console.log('onConversionProgress called')
     ipcRenderer.on('conversion-progress', (event: any, data: any) => callback(data))
   },
+  // 窗口控制 API
+  windowMinimize: (): Promise<void> => {
+    console.log('windowMinimize called')
+    return ipcRenderer.invoke('window-minimize')
+  },
+  windowMaximize: (): Promise<void> => {
+    console.log('windowMaximize called')
+    return ipcRenderer.invoke('window-maximize')
+  },
+  windowClose: (): Promise<void> => {
+    console.log('windowClose called')
+    return ipcRenderer.invoke('window-close')
+  },
+  windowIsMaximized: (): Promise<boolean> => {
+    console.log('windowIsMaximized called')
+    return ipcRenderer.invoke('window-is-maximized')
+  },
 }
 
 console.log('Preload script running, exposing electronAPI:', electronAPI)

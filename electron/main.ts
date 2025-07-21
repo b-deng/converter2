@@ -28,9 +28,11 @@ function createWindow(): void {
       webSecurity: false, // 开发模式下禁用 web 安全
       preload: preloadPath,
     },
-    titleBarStyle: 'hiddenInset',
+    frame: false, // 隐藏默认窗口框架
+    titleBarStyle: 'hidden', // 隐藏标题栏
     show: false,
     backgroundColor: '#ffffff',
+    title: '精转数智', // 更改应用标题
   })
 
   // 窗口准备好后显示，避免闪烁
@@ -81,6 +83,33 @@ ipcMain.handle('select-output-directory', async () => {
   })
 
   return result.filePaths[0]
+})
+
+// 窗口控制 IPC 处理器
+ipcMain.handle('window-minimize', () => {
+  const window = BrowserWindow.getFocusedWindow()
+  if (window) window.minimize()
+})
+
+ipcMain.handle('window-maximize', () => {
+  const window = BrowserWindow.getFocusedWindow()
+  if (window) {
+    if (window.isMaximized()) {
+      window.unmaximize()
+    } else {
+      window.maximize()
+    }
+  }
+})
+
+ipcMain.handle('window-close', () => {
+  const window = BrowserWindow.getFocusedWindow()
+  if (window) window.close()
+})
+
+ipcMain.handle('window-is-maximized', () => {
+  const window = BrowserWindow.getFocusedWindow()
+  return window ? window.isMaximized() : false
 })
 
 ipcMain.handle('convert-file', async (event, filePath: string, outputDir: string, targetFormat: string) => {

@@ -57,6 +57,26 @@ export class FileConverter {
         case 'csv':
           return await this.convertSpreadsheet(inputPath, outputPath, targetFormat, onProgress)
         
+        case 'pptx':
+        case 'ppt':
+          return await this.convertPresentation(inputPath, outputPath, targetFormat, onProgress)
+        
+        case 'txt':
+        case 'rtf':
+          return await this.convertTextDocument(inputPath, outputPath, targetFormat, onProgress)
+        
+        case 'mp4':
+        case 'avi':
+        case 'mov':
+        case 'wmv':
+          return await this.convertVideo(inputPath, outputPath, targetFormat, onProgress)
+        
+        case 'mp3':
+        case 'wav':
+        case 'flac':
+        case 'aac':
+          return await this.convertAudio(inputPath, outputPath, targetFormat, onProgress)
+        
         default:
           return {
             success: false,
@@ -104,8 +124,16 @@ export class FileConverter {
         case 'ico':
           // ICO 格式转换：先转换为PNG，然后调整尺寸
           sharpInstance = sharpInstance
-            .resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .resize(256, 256, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
             .png()
+          break
+        case 'gif':
+          // GIF 格式转换（Sharp 不直接支持 GIF 输出，转为 PNG）
+          sharpInstance = sharpInstance.png()
+          break
+        case 'bmp':
+          // BMP 格式转换
+          sharpInstance = sharpInstance.png() // Sharp 不直接支持 BMP，转为 PNG
           break
         case 'pdf':
           // 对于PDF转换，我们需要先转换为图片，然后嵌入PDF
@@ -493,6 +521,166 @@ export class FileConverter {
     }
   }
 
+  private async convertPresentation(
+    inputPath: string,
+    outputPath: string,
+    targetFormat: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(30)
+      
+      // 目前演示文稿转换功能有限，主要支持基本格式转换
+      // 可以考虑使用 LibreOffice 或其他工具进行更复杂的转换
+      
+      if (targetFormat === 'pdf') {
+        // 使用 LibreOffice 命令行工具转换（如果可用）
+        return await this.convertWithLibreOffice(inputPath, outputPath, targetFormat, onProgress)
+      }
+      
+      return {
+        success: false,
+        error: `演示文稿到 ${targetFormat} 的转换暂未实现，建议使用专业工具`
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '演示文稿转换失败'
+      }
+    }
+  }
+
+  private async convertTextDocument(
+    inputPath: string,
+    outputPath: string,
+    targetFormat: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(30)
+      
+      const inputExt = path.extname(inputPath).toLowerCase().slice(1)
+      
+      if (inputExt === 'txt') {
+        // 从纯文本转换到其他格式
+        const textContent = await fs.promises.readFile(inputPath, 'utf8')
+        onProgress?.(50)
+        
+        if (targetFormat === 'html') {
+          const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>转换的文档</title>
+</head>
+<body>
+<pre>${textContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+</body>
+</html>`
+          await fs.promises.writeFile(outputPath, htmlContent, 'utf8')
+        } else if (targetFormat === 'pdf') {
+          // 简单的文本到PDF转换（需要更复杂的实现）
+          return {
+            success: false,
+            error: 'TXT到PDF转换需要额外的PDF生成库'
+          }
+        } else {
+          return {
+            success: false,
+            error: `不支持从TXT转换到 ${targetFormat}`
+          }
+        }
+      } else if (inputExt === 'rtf') {
+        // RTF格式转换（需要专门的RTF解析库）
+        return {
+          success: false,
+          error: 'RTF格式转换需要专门的解析库'
+        }
+      }
+      
+      onProgress?.(100)
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '文本文档转换失败'
+      }
+    }
+  }
+
+  private async convertVideo(
+    inputPath: string,
+    outputPath: string,
+    targetFormat: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(30)
+      
+      // 视频转换需要 FFmpeg 或类似工具
+      // 这里提供一个基础框架，实际实现需要集成 FFmpeg
+      
+      return {
+        success: false,
+        error: '视频转换功能需要 FFmpeg 支持，请考虑使用专业视频转换工具'
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '视频转换失败'
+      }
+    }
+  }
+
+  private async convertAudio(
+    inputPath: string,
+    outputPath: string,
+    targetFormat: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(30)
+      
+      // 音频转换也需要 FFmpeg 或类似工具
+      // 这里提供一个基础框架
+      
+      return {
+        success: false,
+        error: '音频转换功能需要 FFmpeg 支持，请考虑使用专业音频转换工具'
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '音频转换失败'
+      }
+    }
+  }
+
+  private async convertWithLibreOffice(
+    inputPath: string,
+    outputPath: string,
+    targetFormat: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      // 这是一个使用 LibreOffice 命令行工具的示例实现
+      // 实际使用需要确保系统安装了 LibreOffice
+      
+      return {
+        success: false,
+        error: 'LibreOffice 转换功能需要系统安装 LibreOffice 并配置命令行工具'
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'LibreOffice 转换失败'
+      }
+    }
+  }
+
   // 获取支持的转换格式
   getSupportedFormats(inputFormat: string): string[] {
     switch (inputFormat.toLowerCase()) {
@@ -502,21 +690,49 @@ export class FileConverter {
       case 'gif':
       case 'bmp':
       case 'webp':
-        return ['jpg', 'png', 'webp', 'pdf']
+        return ['jpg', 'png', 'webp', 'gif', 'bmp', 'ico', 'pdf']
+      
+      case 'svg':
+        return ['png', 'jpg', 'webp', 'ico', 'pdf']
+      
+      case 'ico':
+        return ['png', 'jpg', 'webp']
       
       case 'docx':
       case 'doc':
-        return ['txt', 'html']
+        return ['txt', 'html', 'pdf']
       
       case 'pdf':
         return ['docx', 'txt']
       
       case 'xlsx':
       case 'xls':
-        return ['csv', 'json']
+        return ['csv', 'json', 'pdf']
       
       case 'csv':
         return ['xlsx', 'json']
+      
+      case 'txt':
+        return ['html', 'docx', 'pdf']
+      
+      case 'rtf':
+        return ['txt', 'html', 'docx']
+      
+      case 'pptx':
+      case 'ppt':
+        return ['pdf', 'html']
+      
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'wmv':
+        return ['mp4', 'avi', 'mov', 'wmv'] // 需要 FFmpeg
+      
+      case 'mp3':
+      case 'wav':
+      case 'flac':
+      case 'aac':
+        return ['mp3', 'wav', 'flac', 'aac'] // 需要 FFmpeg
       
       default:
         return []

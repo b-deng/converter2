@@ -12,6 +12,33 @@ const converter = new FileConverter()
 
 const isDev = process.env.NODE_ENV === 'development'
 
+// 获取图标路径 - 最终版本（使用硬编码绝对路径）
+function getIconPath(): string {
+  // 使用项目根目录的绝对路径，最可靠
+  const projectRoot = process.cwd()
+  
+  // 优先使用 ICO 格式（Windows 最佳兼容性）
+  const icoPath = path.join(projectRoot, 'build', 'icon.ico')
+  const pngPath = path.join(projectRoot, 'public', 'icon.png')
+  
+  console.log('🎯 精转数智 - 应用图标加载')
+  console.log('项目根目录:', projectRoot)
+  console.log('ICO图标路径:', icoPath)
+  console.log('PNG备用路径:', pngPath)
+  
+  if (fs.existsSync(icoPath)) {
+    console.log('✅ 使用ICO图标:', icoPath)
+    return icoPath
+  } else if (fs.existsSync(pngPath)) {
+    console.log('✅ 使用PNG图标:', pngPath)
+    return pngPath
+  } else {
+    console.warn('⚠️ 图标文件不存在，使用默认图标')
+    // 返回一个存在的路径或让Electron使用默认图标
+    return ''
+  }
+}
+
 function createWindow(): void {
   const preloadPath = path.join(__dirname, 'preload.js')
   console.log('Preload script path:', preloadPath)
@@ -33,7 +60,12 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#ffffff',
     title: '精转数智', // 更改应用标题
-    icon: path.join(__dirname, '../build/icon.ico'), // 使用自定义图标
+    icon: getIconPath(), // 使用动态解析的图标路径
+    // 额外的图标相关配置
+    ...(process.platform === 'win32' && {
+      skipTaskbar: false,
+      autoHideMenuBar: true,
+    }),
   })
 
   // 窗口准备好后显示，避免闪烁

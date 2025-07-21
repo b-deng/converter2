@@ -104,6 +104,14 @@ function App() {
           file.targetFormat || options.targetFormat
         )
 
+        // 调试：打印转换结果
+        console.log('前端收到转换结果:', result)
+        console.log('转换是否成功:', result.success)
+        console.log('输出路径:', result.outputPath)
+        if (result.error) {
+          console.log('转换错误:', result.error)
+        }
+
         // 更新最终状态
         setFiles(prev => prev.map(f =>
           f.id === file.id ? {

@@ -173,118 +173,26 @@ export class FileConverter {
     targetFormat: string,
     onProgress?: (progress: number) => void
   ): Promise<ConversionResult> {
-    console.log('PDF转换调试: ===== 开始PDF转换 =====')
+    console.log('PDF转换调试: ===== 开始PDF转换 (使用 pdf2docx) =====')
+    console.log('PDF转换调试: DEBUG - targetFormat =', targetFormat)
     console.log('PDF转换调试: 输入路径:', inputPath)
     console.log('PDF转换调试: 输出路径:', outputPath)
     console.log('PDF转换调试: 目标格式:', targetFormat)
     
     try {
-      console.log('PDF转换调试: 步骤1 - 开始动态导入库')
-      onProgress?.(20)
-      
-      // 动态导入 PDF 库
-      const pdfParse = await import('pdf-parse')
-      const officegen = await import('officegen')
-      console.log('PDF转换调试: 步骤1 - 库导入成功')
-      
-      console.log('PDF转换调试: 步骤2 - 开始读取PDF文件')
-      // 读取 PDF 文件
-      const pdfBuffer = await fs.promises.readFile(inputPath)
-      console.log('PDF转换调试: 步骤2 - PDF文件读取成功，大小:', pdfBuffer.length, 'bytes')
-      onProgress?.(40)
-      
-      console.log('PDF转换调试: 步骤3 - 开始解析PDF内容')
-      // 使用 pdf-parse 提取文本
-      const pdfData = await pdfParse.default(pdfBuffer)
-      console.log('PDF转换调试: 步骤3 - PDF解析成功，提取文本长度:', pdfData.text?.length || 0)
-      onProgress?.(60)
+      onProgress?.(10)
       
       if (targetFormat === 'docx') {
-        // 确保输出目录存在
-        const outputDir = path.dirname(outputPath)
-        console.log('PDF转换调试: 输出目录:', outputDir)
-        console.log('PDF转换调试: 输出路径:', outputPath)
-        
-        if (!fs.existsSync(outputDir)) {
-          console.log('PDF转换调试: 创建输出目录')
-          fs.mkdirSync(outputDir, { recursive: true })
-        }
-        
-        try {
-          // 使用 officegen 创建 docx 文件
-          const docx = officegen.default('docx')
-          
-          // 正确的 officegen API 使用方式
-          // 添加文本内容到 docx
-          const pObj = docx.createP()
-          pObj.addText(pdfData.text || '无法提取文本内容')
-          
-          onProgress?.(80)
-          
-          // 保存文件
-          return new Promise((resolve) => {
-            const output = fs.createWriteStream(outputPath)
-            
-            output.on('error', (error) => {
-              console.error('PDF转换调试: 文件流错误:', error)
-              resolve({
-                success: false,
-                error: error.message
-              })
-            })
-            
-            output.on('close', () => {
-              console.log('PDF转换调试: 文件写入完成，输出路径:', outputPath)
-              onProgress?.(100)
-              resolve({
-                success: true,
-                outputPath
-              })
-            })
-            
-            output.on('finish', () => {
-              console.log('PDF转换调试: 文件流完成')
-            })
-            
-            try {
-              console.log('PDF转换调试: 开始生成 docx 文件')
-              docx.generate(output)
-            } catch (generateError) {
-              console.error('PDF转换调试: officegen 生成错误:', generateError)
-              resolve({
-                success: false,
-                error: generateError instanceof Error ? generateError.message : 'officegen 生成失败'
-              })
-            }
-          })
-        } catch (error) {
-          console.error('PDF转换调试: officegen 创建错误:', error)
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'officegen 创建失败'
-          }
-        }
+        return await this.convertPDFToDocxWithPython(inputPath, outputPath, onProgress)
       } else if (targetFormat === 'txt') {
-        // 确保输出目录存在
-        const outputDir = path.dirname(outputPath)
-        if (!fs.existsSync(outputDir)) {
-          fs.mkdirSync(outputDir, { recursive: true })
-        }
-        
-        // 保存为文本文件
-        await fs.promises.writeFile(outputPath, pdfData.text, 'utf8')
-        onProgress?.(100)
-        
-        return {
-          success: true,
-          outputPath
-        }
+        return await this.convertPDFToTxtWithPython(inputPath, outputPath, onProgress)
       }
       
       return {
         success: false,
         error: `不支持的PDF转换格式: ${targetFormat}`
       }
+      
     } catch (error) {
       console.error('PDF转换调试: ===== PDF转换失败 =====')
       console.error('PDF转换调试: 错误详情:', error)
@@ -298,6 +206,177 @@ export class FileConverter {
         error: error instanceof Error ? error.message : 'PDF转换失败'
       }
     }
+  }
+
+  private async convertPDFToDocxWithPython(
+    inputPath: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    const { spawn } = await import('child_process')
+    const { fileURLToPath } = await import('url')
+    
+    return new Promise((resolve) => {
+      console.log('PDF转换调试: 步骤1 - 准备调用Python脚本')
+      onProgress?.(20)
+      
+      // 构建Python脚本路径 (使用 ES 模块兼容方式)
+      const currentDir = path.dirname(fileURLToPath(import.meta.url))
+      const scriptPath = path.join(currentDir, '..', '..', 'scripts', 'pdf_to_docx.py')
+      console.log('PDF转换调试: Python脚本路径:', scriptPath)
+      
+      // 确保输出目录存在
+      const outputDir = path.dirname(outputPath)
+      if (!fs.existsSync(outputDir)) {
+        console.log('PDF转换调试: 创建输出目录:', outputDir)
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+      
+      console.log('PDF转换调试: 步骤2 - 启动Python进程')
+      onProgress?.(40)
+      
+      // 调用Python脚本
+      const python = spawn('python', [scriptPath, inputPath, outputPath], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+      
+      let stdout = ''
+      let stderr = ''
+      
+      python.stdout.on('data', (data) => {
+        stdout += data.toString()
+      })
+      
+      python.stderr.on('data', (data) => {
+        stderr += data.toString()
+        console.log('PDF转换调试: Python stderr:', data.toString())
+      })
+      
+      python.on('close', (code) => {
+        console.log('PDF转换调试: Python进程结束，退出码:', code)
+        console.log('PDF转换调试: Python stdout:', stdout)
+        
+        if (stderr) {
+          console.log('PDF转换调试: Python stderr:', stderr)
+        }
+        
+        onProgress?.(80)
+        
+        try {
+          if (code === 0) {
+            // 提取stdout中的JSON结果（通常在最后一行）
+            console.log('PDF转换调试: 原始Python输出长度:', stdout.length)
+            
+            // 尝试从输出中提取JSON
+            let jsonResult = null
+            const lines = stdout.trim().split('\n')
+            
+            // 从后向前查找最后一个有效的JSON行
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const line = lines[i].trim()
+              if (line.startsWith('{') && line.endsWith('}')) {
+                try {
+                  jsonResult = JSON.parse(line)
+                  console.log('PDF转换调试: 找到JSON结果在第', i + 1, '行')
+                  break
+                } catch (e) {
+                  // 继续查找上一行
+                  continue
+                }
+              }
+            }
+            
+            if (jsonResult) {
+              console.log('PDF转换调试: Python脚本结果:', jsonResult)
+              
+              if (jsonResult.success) {
+                console.log('PDF转换调试: 步骤3 - 转换成功')
+                onProgress?.(100)
+                resolve({
+                  success: true,
+                  outputPath: jsonResult.output_path || outputPath
+                })
+              } else {
+                console.error('PDF转换调试: Python脚本转换失败:', jsonResult.error)
+                resolve({
+                  success: false,
+                  error: jsonResult.error || '转换失败'
+                })
+              }
+            } else {
+              console.error('PDF转换调试: 未找到有效的JSON结果')
+              console.error('PDF转换调试: 所有输出行:', lines)
+              resolve({
+                success: false,
+                error: '未找到有效的JSON结果'
+              })
+            }
+          } else {
+            console.error('PDF转换调试: Python脚本退出异常，退出码:', code)
+            resolve({
+              success: false,
+              error: `Python脚本执行失败 (退出码: ${code})${stderr ? ': ' + stderr : ''}`
+            })
+          }
+        } catch (parseError) {
+          console.error('PDF转换调试: 解析Python输出失败:', parseError)
+          console.error('PDF转换调试: 原始输出:', stdout)
+          resolve({
+            success: false,
+            error: `解析Python输出失败: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+          })
+        }
+      })
+      
+      python.on('error', (error) => {
+        console.error('PDF转换调试: Python进程启动失败:', error)
+        resolve({
+          success: false,
+          error: `Python进程启动失败: ${error.message}`
+        })
+      })
+    })
+  }
+
+  private async convertPDFToTxtWithPython(
+    inputPath: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    // 对于txt格式，我们可以使用pdf-parse作为fallback
+    // 或者扩展Python脚本支持txt输出
+    console.log('PDF转换调试: 使用pdf-parse进行txt转换')
+    
+    try {
+      onProgress?.(20)
+      
+      const pdfParse = await import('pdf-parse')
+      const pdfBuffer = await fs.promises.readFile(inputPath)
+      onProgress?.(50)
+      
+      const pdfData = await pdfParse.default(pdfBuffer)
+      onProgress?.(70)
+      
+      // 确保输出目录存在
+      const outputDir = path.dirname(outputPath)
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+      
+      await fs.promises.writeFile(outputPath, pdfData.text, 'utf8')
+      onProgress?.(100)
+      
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'PDF转文本失败'
+      }
+    }
+
   }
 
   private async convertSpreadsheet(

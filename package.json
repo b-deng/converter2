@@ -71,6 +71,8 @@
     "files": [
       "dist/**/*",
       "node_modules/**/*",
+      "scripts/**/*",
+      "package.json",
       "!node_modules/**/*.{md,txt,LICENSE}",
       "!node_modules/**/test/**/*",
       "!node_modules/**/*.d.ts"
@@ -79,6 +81,13 @@
       {
         "from": "assets",
         "to": "assets",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "python-dist",
+        "to": "python-dist",
         "filter": [
           "**/*"
         ]

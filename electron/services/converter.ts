@@ -270,7 +270,7 @@ export class FileConverter {
       onProgress?.(10)
       
       if (targetFormat === 'docx') {
-        return await this.convertPDFToDocxWithPython(inputPath, outputPath, onProgress)
+        return await this.convertPDFToDocxWithExecutable(inputPath, outputPath, onProgress)
       } else if (targetFormat === 'txt') {
         return await this.convertPDFToTxtWithPython(inputPath, outputPath, onProgress)
       }
@@ -293,6 +293,182 @@ export class FileConverter {
         error: error instanceof Error ? error.message : 'PDF转换失败'
       }
     }
+  }
+
+  private logToFile(message: string, data?: any): void {
+    const timestamp = new Date().toISOString()
+    const logEntry = `[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2) : ''}\n`
+    
+    try {
+      // 确定日志文件路径
+      const isDev = process.env.NODE_ENV === 'development'
+      let logPath: string
+      
+      if (isDev) {
+        logPath = path.join(process.cwd(), 'conversion-debug.log')
+      } else {
+        // 生产环境使用用户数据目录
+        const userDataPath = process.env.APPDATA || process.env.HOME || process.cwd()
+        logPath = path.join(userDataPath, 'conversion-debug.log')
+      }
+      
+      fs.appendFileSync(logPath, logEntry)
+    } catch (error) {
+      console.error('日志写入失败:', error)
+    }
+  }
+
+  private async convertPDFToDocxWithExecutable(
+    inputPath: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    const { spawn } = await import('child_process')
+    
+    return new Promise((resolve) => {
+      this.logToFile('PDF到DOCX转换开始', {
+        inputPath,
+        outputPath,
+        nodeEnv: process.env.NODE_ENV,
+        cwd: process.cwd(),
+        execPath: process.execPath
+      })
+
+      onProgress?.(20)
+
+      // 确定Python可执行文件路径
+      let executablePath: string
+      const isDev = process.env.NODE_ENV === 'development'
+
+      if (isDev) {
+        // 开发环境：使用构建的可执行文件
+        executablePath = path.join(process.cwd(), 'python-dist', 'pdf_to_docx.exe')
+      } else {
+        // 生产环境：从extraResources中获取可执行文件
+        executablePath = path.join(process.resourcesPath, 'python-dist', 'pdf_to_docx.exe')
+      }
+
+      this.logToFile('Python可执行文件路径信息', {
+        isDev,
+        executablePath,
+        executableExists: fs.existsSync(executablePath),
+        inputExists: fs.existsSync(inputPath),
+        resourcesPath: process.resourcesPath,
+        execPath: process.execPath
+      })
+
+      // 确保输出目录存在
+      const outputDir = path.dirname(outputPath)
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+
+      onProgress?.(40)
+
+      // 检查可执行文件是否存在
+      if (!fs.existsSync(executablePath)) {
+        this.logToFile('Python可执行文件未找到', {
+          executablePath,
+          suggestion: '可执行文件不存在，请检查构建配置'
+        })
+        return resolve({
+          success: false,
+          error: `PDF转换组件未找到。请重新安装应用程序。`
+        })
+      }
+
+      this.logToFile('直接调用Python可执行文件', {
+        executablePath,
+        inputPath,
+        outputPath,
+        executableDir: path.dirname(executablePath)
+      })
+
+      // 直接调用可执行文件
+      const pythonProcess = spawn(executablePath, [inputPath, outputPath], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: path.dirname(executablePath)
+      })
+
+      let stdout = ''
+      let stderr = ''
+
+      pythonProcess.stdout.on('data', (data) => {
+        stdout += data.toString()
+        this.logToFile('Python进程stdout', { data: data.toString() })
+      })
+
+      pythonProcess.stderr.on('data', (data) => {
+        stderr += data.toString()
+        this.logToFile('Python进程stderr', { data: data.toString() })
+      })
+
+      pythonProcess.on('error', (error: any) => {
+        this.logToFile('Python进程启动错误', {
+          error: error.message,
+          code: error.code,
+          executablePath
+        })
+        
+        return resolve({
+          success: false,
+          error: `PDF转换失败: ${error.message}`
+        })
+      })
+
+      pythonProcess.on('close', (code) => {
+        onProgress?.(80)
+        
+        this.logToFile('Python进程完成', {
+          exitCode: code,
+          stdout,
+          stderr,
+          outputExists: fs.existsSync(outputPath)
+        })
+
+        if (code === 0) {
+          // 检查输出文件是否存在
+          if (fs.existsSync(outputPath)) {
+            onProgress?.(100)
+            resolve({
+              success: true,
+              outputPath
+            })
+          } else {
+            resolve({
+              success: false,
+              error: '转换完成但输出文件未找到'
+            })
+          }
+        } else {
+          // 尝试从stdout解析JSON错误信息
+          let errorMessage = `转换失败 (退出码: ${code})`
+          
+          try {
+            // 查找JSON输出行
+            const lines = stdout.split('\n')
+            const jsonLine = lines.find(line => line.trim().startsWith('{'))
+            
+            if (jsonLine) {
+              const result = JSON.parse(jsonLine.trim())
+              if (result.error) {
+                errorMessage = result.error
+              }
+            }
+          } catch (parseError) {
+            // 如果无法解析JSON，使用stderr作为错误信息
+            if (stderr.trim()) {
+              errorMessage = stderr.trim()
+            }
+          }
+          
+          resolve({
+            success: false,
+            error: errorMessage
+          })
+        }
+      })
+    })
   }
 
   private async convertPDFToDocxWithPython(

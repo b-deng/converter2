@@ -12,6 +12,54 @@ const converter = new FileConverter()
 
 const isDev = process.env.NODE_ENV === 'development'
 
+// 生产环境日志记录
+const logToFile = (message: string, data?: any) => {
+  const logMessage = `[${new Date().toISOString()}] ${message}`
+  console.log(logMessage, data || '')
+  
+  // 在生产环境中，将日志写入文件
+  if (!isDev) {
+    try {
+      const logPath = path.join(app.getPath('userData'), 'conversion.log')
+      const logEntry = `${logMessage} ${data ? JSON.stringify(data, null, 2) : ''}\n`
+      fs.appendFileSync(logPath, logEntry)
+    } catch (error) {
+      console.error('无法写入日志文件:', error)
+    }
+  }
+}
+
+// 简化的生产环境诊断功能
+const runSimpleDiagnostic = () => {
+  if (!isDev) {
+    logToFile('=== 生产环境基础诊断 ===')
+    logToFile('环境信息', {
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      electronVersion: process.versions.electron,
+      nodeEnv: process.env.NODE_ENV,
+      cwd: process.cwd(),
+      execPath: process.execPath,
+      argv: process.argv
+    })
+    
+    // 检查关键文件路径
+    const criticalPaths = [
+      path.join(process.cwd(), 'scripts', 'pdf_to_docx.py'),
+      path.join(__dirname, '..', 'scripts', 'pdf_to_docx.py'),
+      path.join(process.resourcesPath, 'app', 'scripts', 'pdf_to_docx.py')
+    ]
+    
+    criticalPaths.forEach(filePath => {
+      const exists = fs.existsSync(filePath)
+      logToFile(`文件检查: ${filePath}`, { exists })
+    })
+    
+    logToFile('=== 诊断完成 ===')
+  }
+}
+
 // 获取图标路径 - 最终版本（使用硬编码绝对路径）
 function getIconPath(): string {
   // 使用项目根目录的绝对路径，最可靠
@@ -82,11 +130,19 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow()
+  
+  // 在生产环境中自动运行诊断
+  if (!isDev) {
+    logToFile('应用启动 - 开始生产环境诊断')
+    runSimpleDiagnostic()
+  }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
   })
 })
 
@@ -94,19 +150,17 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// IPC handlers
+// IPC 处理程序
 ipcMain.handle('select-files', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'All Files', extensions: ['*'] },
-      { name: 'Documents', extensions: ['pdf', 'doc', 'docx', 'txt', 'rtf'] },
-      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'] },
-      { name: 'Spreadsheets', extensions: ['xls', 'xlsx', 'csv'] },
-      { name: 'Presentations', extensions: ['ppt', 'pptx'] },
-    ],
+      { name: 'Documents', extensions: ['pdf', 'docx', 'doc', 'txt'] },
+      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'] },
+      { name: 'Spreadsheets', extensions: ['xlsx', 'xls', 'csv'] }
+    ]
   })
-
   return result.filePaths
 })
 

@@ -3,15 +3,39 @@ directories:
   buildResources: build
 appId: com.converter.app
 productName: 精转数智
+asar: true
+asarUnpack:
+  - python-dist/**/*
 files:
   - filter:
       - dist/**/*
       - node_modules/**/*
       - scripts/**/*
       - package.json
-      - '!node_modules/**/*.{md,txt,LICENSE}'
+      - '!node_modules/**/*.{md,txt,LICENSE,CHANGELOG,CHANGELOG.md}'
       - '!node_modules/**/test/**/*'
+      - '!node_modules/**/tests/**/*'
       - '!node_modules/**/*.d.ts'
+      - '!node_modules/**/.git/**/*'
+      - '!node_modules/**/docs/**/*'
+      - '!node_modules/**/documentation/**/*'
+      - '!node_modules/**/examples/**/*'
+      - '!node_modules/**/example/**/*'
+      - '!node_modules/**/.nyc_output/**/*'
+      - '!node_modules/**/coverage/**/*'
+      - '!node_modules/**/*.map'
+      - '!node_modules/**/README*'
+      - '!node_modules/**/readme*'
+      - '!node_modules/**/HISTORY*'
+      - '!node_modules/**/CONTRIBUTORS*'
+      - '!node_modules/**/AUTHORS*'
+      - '!node_modules/**/.eslintrc*'
+      - '!node_modules/**/.jshintrc*'
+      - '!node_modules/**/.travis.yml'
+      - '!node_modules/**/Makefile'
+      - '!node_modules/**/makefile'
+      - '!node_modules/**/*.coffee'
+      - '!node_modules/**/*.flow'
 extraResources:
   - from: assets
     to: assets
@@ -28,19 +52,10 @@ mac:
     - target: dmg
       arch:
         - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
 win:
   icon: build/icon.ico
   target:
     - target: nsis
-      arch:
-        - x64
-        - ia32
-    - target: portable
       arch:
         - x64
 linux:

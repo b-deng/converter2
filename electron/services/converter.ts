@@ -1,8 +1,11 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { spawn } from 'child_process'
 import sharp from 'sharp'
 import * as mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
+import { PDFDocument, rgb } from 'pdf-lib'
 
 export interface ConversionResult {
   success: boolean
@@ -136,9 +139,8 @@ export class FileConverter {
           sharpInstance = sharpInstance.png() // Sharp 不直接支持 BMP，转为 PNG
           break
         case 'pdf':
-          // 对于PDF转换，我们需要先转换为图片，然后嵌入PDF
-          // 这里简化处理，直接转换为PNG
-          sharpInstance = sharpInstance.png()
+          // 图片转PDF：使用pdf-lib创建PDF文档
+          return await this.convertImageToPdf(inputPath, outputPath, onProgress)
           break
         default:
           sharpInstance = sharpInstance.png()
@@ -207,6 +209,236 @@ export class FileConverter {
     }
   }
 
+  private async convertImageToPdf(
+    inputPath: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(30)
+      
+      // 创建新的PDF文档
+      const pdfDoc = await PDFDocument.create()
+      
+      // 读取图片文件
+      const imageBytes = await fs.promises.readFile(inputPath)
+      onProgress?.(50)
+      
+      // 根据文件扩展名确定图片类型
+      const ext = path.extname(inputPath).toLowerCase()
+      let image
+      
+      if (ext === '.png') {
+        image = await pdfDoc.embedPng(imageBytes)
+      } else if (ext === '.jpg' || ext === '.jpeg') {
+        image = await pdfDoc.embedJpg(imageBytes)
+      } else {
+        // 对于其他格式，先用Sharp转换为PNG
+        const pngBuffer = await sharp(inputPath).png().toBuffer()
+        image = await pdfDoc.embedPng(pngBuffer)
+      }
+      
+      onProgress?.(70)
+      
+      // 获取图片尺寸
+      const { width, height } = image.scale(1)
+      
+      // 添加页面并插入图片
+      const page = pdfDoc.addPage([width, height])
+      page.drawImage(image, {
+        x: 0,
+        y: 0,
+        width,
+        height,
+      })
+      
+      onProgress?.(90)
+      
+      // 保存PDF
+      const pdfBytes = await pdfDoc.save()
+      await fs.promises.writeFile(outputPath, pdfBytes)
+      
+      onProgress?.(100)
+      
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '图片转PDF失败'
+      }
+    }
+  }
+
+  private async convertDocumentToPdf(
+    inputPath: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(30)
+      
+      // 使用mammoth将DOCX转换为HTML
+      const result = await mammoth.convertToHtml({ path: inputPath })
+      onProgress?.(50)
+      
+      // 创建PDF文档
+      const doc = new jsPDF()
+      
+      // 简单的HTML到PDF转换（这里使用基础文本处理）
+      // 注意：这是一个简化的实现，复杂的HTML可能需要更强大的库
+      const textContent = result.value.replace(/<[^>]*>/g, '\n').replace(/\n+/g, '\n').trim()
+      
+      onProgress?.(70)
+      
+      // 将文本添加到PDF
+      const lines = doc.splitTextToSize(textContent, 180) // 180mm宽度
+      doc.text(lines, 10, 10)
+      
+      onProgress?.(90)
+      
+      // 保存PDF
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
+      await fs.promises.writeFile(outputPath, pdfBuffer)
+      
+      onProgress?.(100)
+      
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '文档转PDF失败'
+      }
+    }
+  }
+
+  private async convertTextToPdf(
+    textContent: string,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(60)
+      
+      // 创建PDF文档
+      const doc = new jsPDF()
+      
+      // 设置字体和大小
+      doc.setFontSize(12)
+      
+      // 将文本分割成适合页面宽度的行
+      const lines = doc.splitTextToSize(textContent, 180) // 180mm宽度
+      
+      onProgress?.(80)
+      
+      // 添加文本到PDF，处理分页
+      let yPosition = 20
+      const lineHeight = 7
+      const pageHeight = 280 // A4页面高度约280mm
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (yPosition > pageHeight - 20) {
+          doc.addPage()
+          yPosition = 20
+        }
+        doc.text(lines[i], 10, yPosition)
+        yPosition += lineHeight
+      }
+      
+      onProgress?.(90)
+      
+      // 保存PDF
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
+      await fs.promises.writeFile(outputPath, pdfBuffer)
+      
+      onProgress?.(100)
+      
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '文本转PDF失败'
+      }
+    }
+  }
+
+  private async convertSpreadsheetToPdf(
+    workbook: any,
+    outputPath: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ConversionResult> {
+    try {
+      onProgress?.(60)
+      
+      // 创建PDF文档
+      const doc = new jsPDF()
+      
+      // 获取第一个工作表
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      
+      // 将工作表转换为二维数组
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+      
+      onProgress?.(70)
+      
+      // 设置字体和大小
+      doc.setFontSize(10)
+      
+      let yPosition = 20
+      const lineHeight = 6
+      const pageHeight = 280
+      const colWidth = 30 // 列宽
+      
+      // 添加表格数据到PDF
+      for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
+        const row = data[rowIndex] as any[]
+        
+        if (yPosition > pageHeight - 20) {
+          doc.addPage()
+          yPosition = 20
+        }
+        
+        // 绘制行数据
+        let xPosition = 10
+        for (let colIndex = 0; colIndex < Math.min(row.length, 6); colIndex++) { // 最多6列
+          const cellValue = String(row[colIndex] || '')
+          const truncatedValue = cellValue.length > 15 ? cellValue.substring(0, 15) + '...' : cellValue
+          doc.text(truncatedValue, xPosition, yPosition)
+          xPosition += colWidth
+        }
+        
+        yPosition += lineHeight
+      }
+      
+      onProgress?.(90)
+      
+      // 保存PDF
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
+      await fs.promises.writeFile(outputPath, pdfBuffer)
+      
+      onProgress?.(100)
+      
+      return {
+        success: true,
+        outputPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '表格转PDF失败'
+      }
+    }
+  }
+
   private async convertDocument(
     inputPath: string, 
     outputPath: string, 
@@ -240,6 +472,9 @@ export class FileConverter {
           success: true,
           outputPath
         }
+      } else if (targetFormat === 'pdf') {
+        // 将Word文档转换为PDF
+        return await this.convertDocumentToPdf(inputPath, outputPath, onProgress)
       }
       
       return {
@@ -651,8 +886,23 @@ export class FileConverter {
     try {
       onProgress?.(30)
       
-      // 读取Excel文件
-      const workbook = XLSX.readFile(inputPath)
+      // 根据输入文件类型读取数据
+      const inputExt = path.extname(inputPath).toLowerCase().slice(1)
+      let workbook
+      
+      if (inputExt === 'csv') {
+        // 读取CSV文件并转换为工作簿
+        const csvContent = await fs.promises.readFile(inputPath, 'utf8')
+        const worksheet = XLSX.utils.aoa_to_sheet(
+          csvContent.split('\n').map(row => row.split(','))
+        )
+        workbook = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
+      } else {
+        // 读取Excel文件
+        workbook = XLSX.readFile(inputPath)
+      }
+      
       onProgress?.(50)
       
       if (targetFormat === 'csv') {
@@ -683,6 +933,9 @@ export class FileConverter {
           success: true,
           outputPath
         }
+      } else if (targetFormat === 'pdf') {
+        // 转换为PDF
+        return await this.convertSpreadsheetToPdf(workbook, outputPath, onProgress)
       }
       
       return {
@@ -755,11 +1008,8 @@ export class FileConverter {
 </html>`
           await fs.promises.writeFile(outputPath, htmlContent, 'utf8')
         } else if (targetFormat === 'pdf') {
-          // 简单的文本到PDF转换（需要更复杂的实现）
-          return {
-            success: false,
-            error: 'TXT到PDF转换需要额外的PDF生成库'
-          }
+          // 文本到PDF转换
+          return await this.convertTextToPdf(textContent, outputPath, onProgress)
         } else {
           return {
             success: false,
